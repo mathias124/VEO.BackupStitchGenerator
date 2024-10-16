@@ -1,73 +1,62 @@
+from flask import Flask, request, Response
+from flask_cors import CORS  # Import CORS
+import imageio_ffmpeg as ffmpeg
+import tempfile
 import os
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import ffmpeg
-import requests
 import subprocess
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS for all routes
 
 
 @app.route('/process-video', methods=['POST'])
 def process_video():
-    data = request.get_json()  # Extract the JSON data
-    video_url = data.get('url')  # Get the video URL
+    data = request.get_json()
+    video_url = data.get('url')
+
     if not video_url:
-        return jsonify({"error": "No URL provided"}), 400
+        return {'error': 'No video URL provided'}, 400
 
-    input_path = 'temp_input.ts'
-    output_path = 'output.mp4'
-
-    # Download the video first
-    try:
-        print("Downloading video...")
-        response = requests.get(video_url, stream=True)
-        response.raise_for_status()  # Raise an error for bad responses
-
-        with open(input_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-        print(f"Video downloaded to {input_path}.")
-    except Exception as e:
-        return jsonify({"error": f"Failed to download video: {str(e)}"}), 500
-
-    # Now process the downloaded video
     try:
         print("Starting video processing...")
-        process = subprocess.run(
-            ['ffmpeg', '-i', input_path, '-vf', 'scale=1920:1080', output_path],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
 
-        # Print FFmpeg output to console for debugging
-        print(process.stdout.decode())
-        print(process.stderr.decode())
+        # Get ffmpeg executable path
+        ffmpeg_path = ffmpeg.get_ffmpeg_exe()
 
+        # Create a temporary file for output
+        temp_output_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+
+        # Create a command to process the video and stream it
+        command = [
+            ffmpeg_path,
+            '-i', video_url,  # Input URL
+            '-c:v', 'libx264',  # Video codec
+            '-preset', 'fast',  # Preset for compression
+            temp_output_file.name,  # Output file
+        ]
+
+        # Run the ffmpeg command
+        process = subprocess.run(command, capture_output=True)
+
+        # Check if there was an error during processing
         if process.returncode != 0:
-            raise Exception(f"FFmpeg failed with error code: {process.returncode}")
+            raise Exception(f"FFmpeg error: {process.stderr.decode()}")
 
         print("Video processed successfully.")
-    except Exception as e:
-        return jsonify({"error": f"Error during processing: {str(e)}"}), 500
 
-    # Check if the output file exists
-    if not os.path.exists(output_path):
-        return jsonify({"error": "Output file does not exist."}), 500
-
-    # Send the processed video back to the client
-    try:
-        with open(output_path, 'rb') as f:
+        # Stream the video back to the client
+        with open(temp_output_file.name, 'rb') as f:
             video_data = f.read()
 
-        # Clean up temporary files
-        os.remove(input_path)
-        os.remove(output_path)
+        # Clean up the temporary file
+        os.unlink(temp_output_file.name)
 
-        return jsonify({"message": "Video processed successfully"})
+        return Response(video_data, mimetype='video/mp4')
+
     except Exception as e:
-        return jsonify({"error": f"Error while sending the file: {str(e)}"}), 500
+        print(f"Error during processing: {e}")
+        return {'error': str(e)}, 500
+
 
 if __name__ == '__main__':
-    app.run(port=5000)
+    app.run(debug=True, port=5000)
