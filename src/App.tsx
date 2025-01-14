@@ -5,7 +5,7 @@ const App: React.FC = () => {
   const [videoURL, setVideoURL] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
-
+//This works.
  const handleStreamVideo = async () => {
   setErrorMessage(null); // Reset any previous error messages
   try {
