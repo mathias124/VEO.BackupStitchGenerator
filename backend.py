@@ -1,9 +1,13 @@
+import os
 import requests
-from flask import Flask, request, jsonify
-from flask_cors import CORS  # Import CORS
+from flask import Flask, request, jsonify, Response
+from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Temporary in-memory store for video URLs
+video_store = {}
 
 @app.route('/process-video', methods=['POST'])
 def process_video():
@@ -13,19 +17,32 @@ def process_video():
     if not video_url:
         return jsonify({"error": "No video URL provided"}), 400
 
-    return jsonify({'output_url': video_url})
+    # Generate a unique ID for the video
+    video_id = os.path.basename(video_url)
+    video_store[video_id] = video_url  # Save the video URL in the store
+
+    return jsonify({'output_url': video_id})
 
 
-@app.route('/stream/<path:video_filename>', methods=['GET'])
-def stream_video(video_filename):
-    # Mocking the behavior for demonstration
-    video_url = f"https://c.veocdn.com/c6cf4c5d-31c6-4cad-ad32-6b24484b8ddb/standard/machine/0213a5f1/{video_filename}"
+@app.route('/stream/<path:video_id>', methods=['GET'])
+def stream_video(video_id):
+    # Retrieve the video URL from the store
+    video_url = video_store.get(video_id)
 
-    response = requests.get(video_url, stream=True)
-    if response.status_code != 200:
+    if not video_url:
         return jsonify({"error": "Video not found"}), 404
 
-    return response.content, 200, {'Content-Type': 'video/mp4'}
+    # Fetch the video from the URL
+    response = requests.get(video_url, stream=True)
+    if response.status_code != 200:
+        return jsonify({"error": "Error fetching the video"}), 500
+
+    # Stream the video content to the client
+    def generate():
+        for chunk in response.iter_content(chunk_size=8192):
+            yield chunk
+
+    return Response(generate(), content_type='video/mp4')
 
 
 if __name__ == '__main__':
