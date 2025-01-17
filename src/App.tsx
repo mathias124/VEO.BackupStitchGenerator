@@ -1,50 +1,72 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
+
+
 
 const App: React.FC = () => {
-  const [videoURL, setVideoURL] = useState<string>('');
+  const [videoURL1, setVideoURL1] = useState<string>('');
+  const [videoURL2, setVideoURL2] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const navigate = useNavigate();
-//This works.
- const handleStreamVideo = async () => {
-  setErrorMessage(null); // Reset any previous error messages
+  const [videoSrc, setVideoSrc] = useState<string | null>(null); // Holds the merged video URL for the video player
+
+  const handleMergeVideos = async () => {
+  setErrorMessage(null);
+  setVideoSrc(null); // Reset video source
   try {
     const response = await fetch('http://localhost:5000/process-video', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ url: videoURL }),
+      body: JSON.stringify({ url1: videoURL1, url2: videoURL2 }),
     });
 
+    // Ensure the response status is OK
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const { output_url } = await response.json();
-    const videoId = output_url.split('/').pop(); // Extract video ID from output_url
-
-    // Navigate to the streaming page using the video ID
-    navigate(`/stream/${videoId}`);
-  } catch (error: unknown) {
-    console.error('Error generating hash link:', error);
-
+    // Process the response as a binary blob
+    const blob = await response.blob();
+    const videoObjectURL = URL.createObjectURL(blob); // Create a URL for the video
+    setVideoSrc(videoObjectURL); // Set the video source dynamically
+  } catch (error) {
+    console.error('Error merging videos:', error);
+    setErrorMessage('Failed to merge videos. Please check the URLs and try again.');
   }
 };
 
-
   return (
     <div className="app">
-      <h1>Stream MP4 Recording</h1>
-
-      <input
-        type="text"
-        placeholder="Enter video URL"
-        value={videoURL}
-        onChange={(e) => setVideoURL(e.target.value)}
-      />
-      <button onClick={handleStreamVideo}>Stream Video</button>
+      <h1>Merge MP4 Videos</h1>
+      <div>
+        <input
+          type="text"
+          placeholder="Enter first video URL"
+          value={videoURL1}
+          onChange={(e) => setVideoURL1(e.target.value)}
+        />
+        <br />
+        <input
+          type="text"
+          placeholder="Enter second video URL"
+          value={videoURL2}
+          onChange={(e) => setVideoURL2(e.target.value)}
+        />
+        <br />
+        <button onClick={handleMergeVideos}>Merge Videos</button>
+      </div>
       {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
+      <div>
+        {videoSrc ? (
+          <video controls>
+            <source src={videoSrc} type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+        ) : (
+          <p>Enter two video URLs and click "Merge Videos" to see the result.</p>
+        )}
+      </div>
     </div>
   );
 };
