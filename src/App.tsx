@@ -1,44 +1,38 @@
 import React, { useState } from 'react';
 
-
-
-
 const App: React.FC = () => {
   const [videoURL1, setVideoURL1] = useState<string>('');
   const [videoURL2, setVideoURL2] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [videoSrc, setVideoSrc] = useState<string | null>(null); // Holds the merged video URL for the video player
 
   const handleMergeVideos = async () => {
-  setErrorMessage(null);
-  setVideoSrc(null); // Reset video source
-  try {
-    const response = await fetch('http://localhost:5000/process-video', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url1: videoURL1, url2: videoURL2 }),
-    });
+    setErrorMessage(null); // Reset error message
+    try {
+      const response = await fetch('http://localhost:5000/process-video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url1: videoURL1, url2: videoURL2 }),
+      });
 
-    // Ensure the response status is OK
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.hash) {
+        window.location.href = `/stream/${data.hash}`; // Redirect to the stream page
+      }
+    } catch (error) {
+      console.error('Error merging videos:', error);
+      setErrorMessage('Failed to merge videos. Please check the URLs and try again.');
     }
-
-    // Process the response as a binary blob
-    const blob = await response.blob();
-    const videoObjectURL = URL.createObjectURL(blob); // Create a URL for the video
-    setVideoSrc(videoObjectURL); // Set the video source dynamically
-  } catch (error) {
-    console.error('Error merging videos:', error);
-    setErrorMessage('Failed to merge videos. Please check the URLs and try again.');
-  }
-};
+  };
 
   return (
     <div className="app">
-      <h1>Merge MP4 Videos</h1>
+      <h1>Merge 2 Veo Follow Cam Streams</h1>
       <div>
         <input
           type="text"
@@ -58,14 +52,7 @@ const App: React.FC = () => {
       </div>
       {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
       <div>
-        {videoSrc ? (
-          <video controls>
-            <source src={videoSrc} type="video/mp4" />
-            Your browser does not support the video tag.
-          </video>
-        ) : (
-          <p>Enter two video URLs and click "Merge Videos" to see the result.</p>
-        )}
+        <p>Enter two video URLs and click "Merge Videos" to see the result.</p>
       </div>
     </div>
   );

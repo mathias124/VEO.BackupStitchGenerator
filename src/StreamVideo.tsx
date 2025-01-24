@@ -7,19 +7,21 @@ const StreamVideo: React.FC = () => {
 
   useEffect(() => {
     const fetchVideo = async () => {
-      try {
-        // Ensure the correct URL is used based on your setup
-        const response = await fetch(`http://localhost:5000/stream/${hash_link}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const blob = await response.blob();
-        setVideoBlob(blob);
-      } catch (error) {
-        console.error('Error fetching video:', error);
-      }
-    };
-
+  try {
+    const response = await fetch(`http://localhost:5000/stream/${hash_link}`, {
+      headers: {
+        'Range': 'bytes=0-',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const blob = await response.blob();
+    setVideoBlob(blob);
+  } catch (error) {
+    console.error('Error fetching video:', error);
+  }
+};
     fetchVideo();
   }, [hash_link]);
 
