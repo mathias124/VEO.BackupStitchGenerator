@@ -6,7 +6,7 @@ const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleMergeVideos = async () => {
-    setErrorMessage(null); // Reset error message
+    setErrorMessage(null); //(Incase Error is associated with not retrieving the mp4 follow file.
     try {
       const response = await fetch('http://localhost:5000/process-video', {
         method: 'POST',
@@ -22,7 +22,7 @@ const App: React.FC = () => {
 
       const data = await response.json();
       if (data.hash) {
-        window.location.href = `/stream/${data.hash}`; // Redirect to the stream page
+        window.location.href = `/stream/${data.hash}`; //Redirect to the stream page(5000)
       }
     } catch (error) {
       console.error('Error merging videos:', error);
@@ -32,7 +32,7 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      <h1>Merge 2 Veo Follow Cam Streams</h1>
+      <h1>Merge 2 Veo Follow Cam Recordings </h1>
       <div>
         <input
           type="text"
