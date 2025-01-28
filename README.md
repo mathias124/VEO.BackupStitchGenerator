@@ -1,2 +1,1 @@
-Created Using FFMpeg, React & Python for an online support Camera Stitch Generator. This is a backup, for some extraordinary files.
-creating this to try to save corrupted files or for cameras that has a lens shutdown midst recording.
+Follow Merger, Experimental Fusionizer of taking 2 mp4 files merging it into 1, which could become handy for 2 halfes into 1 half for Veo Recordings.
