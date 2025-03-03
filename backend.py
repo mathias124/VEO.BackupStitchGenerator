@@ -7,7 +7,7 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-FFMPEG_PATH = "C:/Users/veouser/Downloads/ffmpeg-2025-01-08-git-251de1791e-full_build/ffmpeg-2025-01-08-git-251de1791e-full_build/bin/ffmpeg.exe"
+FFMPEG_PATH = "C:/Users//Downloads/ffmpeg-2025-01-08-git-251de1791e-full_build/ffmpeg-2025-01-08-git-251de1791e-full_build/bin/ffmpeg.exe"
 TEMP_DIR = "temp_videos"
 #Just making sure the file folder is correct(for new git clones).
 os.makedirs(TEMP_DIR, exist_ok=True)
