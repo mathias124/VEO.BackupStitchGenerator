@@ -26,7 +26,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(({ onTimeUpda
       if (onPause) onPause()
     },
     get currentTime() {
-      return 0 // 07:08 in seconds - hardcoded to match the screenshot
+      return 0
     },
   }))
 

@@ -203,16 +203,16 @@ const App: React.FC = () => {
             <div className="trim-controls">
               <div className="trim-buttons">
                 <button onClick={() => setStartTime(videoRef.current?.currentTime || 0)} className="action-button">
-                  Set Start Time ({startTime.toFixed(2)}s)
+                  Set Start Time ({formatTime(startTime)})
                 </button>
 
                 <button onClick={() => setEndTime(videoRef.current?.currentTime || 0)} className="action-button">
-                  Set End Time ({endTime.toFixed(2)}s)
+                  Set End Time ({formatTime(endTime)})
                 </button>
               </div>
 
               <div className="trim-range">
-                <strong>Trim Range:</strong> {startTime.toFixed(2)}s → {endTime.toFixed(2)}s
+                <strong>Trim Range:</strong> {formatTime(startTime)} → {formatTime(endTime)}
               </div>
 
               <button onClick={handleTrimVideo} className="action-button">
@@ -221,6 +221,8 @@ const App: React.FC = () => {
             </div>
           )}
         </div>
+
+
 
         {errorMessage && <div className="error-message">{errorMessage}</div>}
       </div>
