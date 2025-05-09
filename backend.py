@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import subprocess
 import os
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -109,6 +110,43 @@ def stream_video(hash_link):
                 yield chunk
 
     return Response(generate(), content_type="video/mp4")
+
+from flask import stream_with_context
+import requests
+
+@app.route('/proxy-video')
+def proxy_video():
+    remote_url = request.args.get('url')
+    if not remote_url or not remote_url.startswith("http"):
+        return jsonify({"error": "Missing or invalid URL"}), 400
+
+    try:
+        headers = {}
+        # Forward Range header if present
+        if 'Range' in request.headers:
+            headers['Range'] = request.headers['Range']
+
+        r = requests.get(remote_url, stream=True, headers=headers, timeout=10)
+        status_code = 206 if 'Range' in request.headers else 200
+
+        response = Response(stream_with_context(r.iter_content(chunk_size=8192)),
+                            status=status_code,
+                            content_type=r.headers.get("Content-Type", "video/mp4"))
+
+        # Forward essential headers
+        response.headers["Content-Length"] = r.headers.get("Content-Length", "")
+        response.headers["Accept-Ranges"] = r.headers.get("Accept-Ranges", "bytes")
+        response.headers["Content-Range"] = r.headers.get("Content-Range", "")
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+        response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
+        return response
+
+    except Exception as e:
+        print(f"Proxy error: {e}")
+        return jsonify({"error": "Failed to fetch remote video"}), 500
+
+
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
