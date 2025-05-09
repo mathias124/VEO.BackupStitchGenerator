@@ -23,44 +23,51 @@ def process_video():
     if not video1_url or not video2_url:
         return jsonify({"error": "Both video URLs must be provided"}), 400
 
-    video1_temp = os.path.join(TEMP_DIR, f"temp1_{uuid.uuid4()}.ts")
-    video2_temp = os.path.join(TEMP_DIR, f"temp2_{uuid.uuid4()}.ts")
-
-    preprocess_command1 = [
-        FFMPEG_PATH, "-i", video1_url, "-vf", "scale=1920:1080",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-strict", "experimental", video1_temp
-    ]
-    preprocess_command2 = [
-        FFMPEG_PATH, "-i", video2_url, "-vf", "scale=1920:1080",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-strict", "experimental", video2_temp
-    ]
+    # Download videos locally as temp .mp4 files
+    video1_temp = os.path.join(TEMP_DIR, f"temp1_{uuid.uuid4()}.mp4")
+    video2_temp = os.path.join(TEMP_DIR, f"temp2_{uuid.uuid4()}.mp4")
 
     try:
-        subprocess.run(preprocess_command1, check=True)
-        subprocess.run(preprocess_command2, check=True)
+        # Download videos using requests
+        for url, path in [(video1_url, video1_temp), (video2_url, video2_temp)]:
+            with requests.get(url, stream=True, timeout=30) as r:
+                r.raise_for_status()
+                with open(path, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+
+        # Create concat file list
+        concat_file = os.path.join(TEMP_DIR, f"concat_{uuid.uuid4()}.txt")
+        with open(concat_file, 'w') as f:
+            f.write(f"file '{os.path.abspath(video1_temp)}'\n")
+            f.write(f"file '{os.path.abspath(video2_temp)}'\n")
 
         video_hash = str(uuid.uuid4())
         output_file = os.path.join(TEMP_DIR, f"{video_hash}.mp4")
 
         merge_command = [
-            FFMPEG_PATH, "-i", video1_temp, "-i", video2_temp,
-            "-filter_complex", "[0:v:0][0:a:0][1:v:0][1:a:0]concat=n=2:v=1:a=1[outv][outa]",
-            "-map", "[outv]", "-map", "[outa]", "-f", "mp4",
-            "-movflags", "frag_keyframe+empty_moov", output_file
+            FFMPEG_PATH,
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concat_file,
+            "-c", "copy",
+            output_file
         ]
 
         subprocess.run(merge_command, check=True)
         video_storage[video_hash] = output_file
 
+
         os.remove(video1_temp)
         os.remove(video2_temp)
+        os.remove(concat_file)
 
         return jsonify({"hash": video_hash}), 200
-    except subprocess.CalledProcessError as e:
-        print(f"Error processing video: {e}")
-        return jsonify({"error": "Failed to preprocess or merge videos"}), 500
+
+    except Exception as e:
+        print(f"Error during fast merge: {e}")
+        return jsonify({"error": "Failed to process and merge videos"}), 500
+
 
 @app.route('/trim-video', methods=['POST'])
 def trim_video():
