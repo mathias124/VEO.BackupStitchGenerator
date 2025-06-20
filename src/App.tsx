@@ -7,7 +7,6 @@ import "./App.css"
 const App: React.FC = () => {
   const [videoURL1, setVideoURL1] = useState("")
   const [videoURL2, setVideoURL2] = useState("")
-  const [trimURL, setTrimURL] = useState("")
   const [startTime, setStartTime] = useState<number>(0)
   const [endTime, setEndTime] = useState<number>(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -15,6 +14,20 @@ const App: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+
+  // For trims sync.*/
+  const getHashParams = () => {
+    const path = window.location.pathname
+    const match = path.match(/\/stream-dual\/([^/]+)\/([^/]+)/)
+    return match ? { hash1: match[1], hash2: match[2] } : null
+  }
+
+  const hashParams = getHashParams()
+
+  if (hashParams) {
+    return <DualStreamView hash1={hashParams.hash1} hash2={hashParams.hash2} />
+  }
+
 
   const handleMergeVideos = async () => {
     setErrorMessage(null)
@@ -39,8 +52,8 @@ const App: React.FC = () => {
     setErrorMessage(null)
     const duration = Math.max(0, endTime - startTime)
 
-    if (!trimURL || duration <= 0) {
-      setErrorMessage("Please set a valid start and end time.")
+    if (!videoURL1 || !videoURL2 || duration <= 0) {
+      setErrorMessage("Please set both video URLs and valid start/end time.")
       return
     }
 
@@ -49,7 +62,8 @@ const App: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: trimURL,
+          url1: videoURL1,
+          url2: videoURL2,
           start: startTime.toFixed(2),
           duration: duration.toFixed(2),
         }),
@@ -58,10 +72,12 @@ const App: React.FC = () => {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
 
       const data = await response.json()
-      if (data.hash) window.location.href = `/stream/${data.hash}`
+      if (data.hash1 && data.hash2) {
+        window.location.href = `/stream-dual/${data.hash1}/${data.hash2}`
+      }
     } catch (error) {
-      console.error("Error trimming video:", error)
-      setErrorMessage("Failed to trim video. Please check the URL and try again.")
+      console.error("Error trimming videos:", error)
+      setErrorMessage("Failed to trim videos. Please check the URLs and try again.")
     }
   }
 
@@ -111,8 +127,6 @@ const App: React.FC = () => {
         <div className="veo-header">
           <div className="veo-title-section">
             <div className="veo-title">Veo Fusionizer</div>
-
-
           </div>
           <div className="veo-actions">
             <div className="veo-avatar">Support</div>
@@ -120,15 +134,16 @@ const App: React.FC = () => {
         </div>
 
         <div className="veo-player">
-          {trimURL ? (
+          {videoURL1 ? (
             <video
               ref={videoRef}
-              src={getProxiedSrc(trimURL)}
+              src={getProxiedSrc(videoURL1)}
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}
               className="veo-video"
+              controls
             />
           ) : (
             <div className="veo-placeholder">
@@ -155,24 +170,19 @@ const App: React.FC = () => {
                 {isPlaying ? "❚❚" : "▶"}
               </button>
 
-
               <div className="veo-time">
                 {formatTime(currentTime)} / {formatTime(duration)}
               </div>
 
               <div className="veo-spacer"></div>
-
-
             </div>
           </div>
-
-
         </div>
       </div>
 
       <div className="tools-container">
         <div className="tool-section">
-          <h1>Merge 2 Veo Follow Cam Recordings</h1>
+          <h2>Merge 2 Veo Follow Cam Recordings</h2>
           <input
             type="text"
             placeholder="Enter first video URL"
@@ -191,15 +201,25 @@ const App: React.FC = () => {
         </div>
 
         <div className="tool-section">
-          <h1>Trim a Veo Recording Visually</h1>
+          <h2>Trim a Veo Recording Visually</h2>
+
+          <h3>Interactive</h3>
           <input
             type="text"
-            placeholder="Enter streamable video URL"
-            value={trimURL}
-            onChange={(e) => setTrimURL(e.target.value)}
+            placeholder="Enter streamable video URL Interactive"
+            value={videoURL1}
+            onChange={(e) => setVideoURL1(e.target.value)}
           />
 
-          {trimURL && (
+          <h3>FollowCam</h3>
+          <input
+            type="text"
+            placeholder="Enter streamable video URL FollowCam"
+            value={videoURL2}
+            onChange={(e) => setVideoURL2(e.target.value)}
+          />
+
+          {videoURL1 && (
             <div className="trim-controls">
               <div className="trim-buttons">
                 <button onClick={() => setStartTime(videoRef.current?.currentTime || 0)} className="action-button">
@@ -216,13 +236,11 @@ const App: React.FC = () => {
               </div>
 
               <button onClick={handleTrimVideo} className="action-button">
-                Trim Video
+                Trim Videos
               </button>
             </div>
           )}
         </div>
-
-
 
         {errorMessage && <div className="error-message">{errorMessage}</div>}
       </div>

@@ -72,12 +72,13 @@ def process_video():
 @app.route('/trim-video', methods=['POST'])
 def trim_video():
     data = request.get_json()
-    video_url = data.get('url')
+    url1 = data.get('url1')
+    url2 = data.get('url2')
     start = data.get('start')
     duration = data.get('duration')
 
-    if not video_url or start is None or duration is None:
-        return jsonify({"error": "Video URL, start, and duration must be provided"}), 400
+    if not url1 or not url2 or start is None or duration is None:
+        return jsonify({"error": "url1, url2, start, and duration must all be provided"}), 400
 
     try:
         start = float(start)
@@ -85,25 +86,38 @@ def trim_video():
     except ValueError:
         return jsonify({"error": "Start and duration must be numeric"}), 400
 
-    output_hash = str(uuid.uuid4())
-    output_file = os.path.join(TEMP_DIR, f"{output_hash}.mp4")
+    hash1 = str(uuid.uuid4())
+    hash2 = str(uuid.uuid4())
+    path1 = os.path.join(TEMP_DIR, f"{hash1}.mp4")
+    path2 = os.path.join(TEMP_DIR, f"{hash2}.mp4")
 
-    trim_command = [
-        FFMPEG_PATH,
-        "-ss", str(start),
-        "-i", video_url,
-        "-t", str(duration),
-        "-c", "copy",
-        output_file
+    cmd1 = [
+        FFMPEG_PATH, "-ss", str(start), "-i", url1,
+        "-t", str(duration), "-c", "copy", path1
+    ]
+    cmd2 = [
+        FFMPEG_PATH, "-ss", str(start), "-i", url2,
+        "-t", str(duration), "-c", "copy", path2
     ]
 
     try:
-        subprocess.run(trim_command, check=True)
-        video_storage[output_hash] = output_file
-        return jsonify({"hash": output_hash}), 200
+        p1 = subprocess.Popen(cmd1)
+        p2 = subprocess.Popen(cmd2)
+        p1.wait()
+        p2.wait()
+
+        if p1.returncode != 0 or p2.returncode != 0:
+            raise subprocess.CalledProcessError(p1.returncode or p2.returncode, cmd1 if p1.returncode else cmd2)
+
+        video_storage[hash1] = path1
+        video_storage[hash2] = path2
+
+        return jsonify({"hash1": hash1, "hash2": hash2}), 200
+
     except subprocess.CalledProcessError as e:
-        print(f"Error trimming video: {e}")
-        return jsonify({"error": "Failed to trim video"}), 500
+        print(f"Trimming error: {e}")
+        return jsonify({"error": "One or both trims failed"}), 500
+
 
 @app.route('/stream/<hash_link>', methods=['GET'])
 def stream_video(hash_link):
