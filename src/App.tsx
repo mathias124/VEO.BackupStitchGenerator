@@ -4,9 +4,16 @@ import type React from "react"
 import { useRef, useState } from "react"
 import "./App.css"
 
+// ✅ correct for default export
+import SettingsFileDropComponent from "./SettingsFileDropComponent";
+// or: import SettingsFileDropComponent from "./SettingsFileDropComponent.tsx";
+
+
+
 const App: React.FC = () => {
   const [videoURL1, setVideoURL1] = useState("")
   const [videoURL2, setVideoURL2] = useState("")
+  const [panoramaURL, setPanoramaURL] = useState("")            // <- separate URL for Panorama
   const [startTime, setStartTime] = useState<number>(0)
   const [endTime, setEndTime] = useState<number>(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -14,8 +21,9 @@ const App: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [settingsFile, setSettingsFile] = useState<File | null>(null) // <- typed
 
-  // For trims sync.*/
+  // For trims sync.
   const getHashParams = () => {
     const path = window.location.pathname
     const match = path.match(/\/stream-dual\/([^/]+)\/([^/]+)/)
@@ -23,11 +31,9 @@ const App: React.FC = () => {
   }
 
   const hashParams = getHashParams()
-
   if (hashParams) {
     return <DualStreamView hash1={hashParams.hash1} hash2={hashParams.hash2} />
   }
-
 
   const handleMergeVideos = async () => {
     setErrorMessage(null)
@@ -218,6 +224,19 @@ const App: React.FC = () => {
             value={videoURL2}
             onChange={(e) => setVideoURL2(e.target.value)}
           />
+
+          <h2>Panorama Download</h2>
+          <h3>Panorama URL</h3>
+          <input
+            type="text"
+            placeholder="Enter streamable video Stacked URL"
+            value={panoramaURL}                               // <- separate state
+            onChange={(e) => setPanoramaURL(e.target.value)}   // <- separate setter
+          />
+
+          <h3>Settings Stitch File</h3>
+          <SettingsFileDropComponent onFileSelected={setSettingsFile} />
+          {settingsFile && <p>Selected: {settingsFile.name}</p>}
 
           {videoURL1 && (
             <div className="trim-controls">
