@@ -4,16 +4,13 @@ import type React from "react"
 import { useRef, useState } from "react"
 import "./App.css"
 
-// ✅ correct for default export
-import SettingsFileDropComponent from "./SettingsFileDropComponent";
-// or: import SettingsFileDropComponent from "./SettingsFileDropComponent.tsx";
-
-
+// default export import
+import SettingsFileDropComponent from "./SettingsFileDropComponent"
 
 const App: React.FC = () => {
   const [videoURL1, setVideoURL1] = useState("")
   const [videoURL2, setVideoURL2] = useState("")
-  const [panoramaURL, setPanoramaURL] = useState("")            // <- separate URL for Panorama
+  const [panoramaURL, setPanoramaURL] = useState("")            // ← Panorama has its own URL
   const [startTime, setStartTime] = useState<number>(0)
   const [endTime, setEndTime] = useState<number>(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -21,7 +18,8 @@ const App: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
-  const [settingsFile, setSettingsFile] = useState<File | null>(null) // <- typed
+  const [settingsFile, setSettingsFile] = useState<File | null>(null)
+  const [settingsJSON, setSettingsJSON] = useState<any | null>(null) // ← parsed JSON from drop
 
   // For trims sync.
   const getHashParams = () => {
@@ -86,6 +84,29 @@ const App: React.FC = () => {
       setErrorMessage("Failed to trim videos. Please check the URLs and try again.")
     }
   }
+
+  const handlePanoramaStitch = async () => {
+    console.log("CLICK: stitch", { panoramaURL, settingsJSON });
+    if (!panoramaURL || !settingsJSON) {
+      console.warn("Guard failed – need panoramaURL + settingsJSON");
+      return;
+    }
+    try {
+      const r = await fetch("http://localhost:5000/panorama-stitch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stacked_url: panoramaURL, settings: settingsJSON }),
+      });
+      console.log("RESPONSE STATUS:", r.status);
+      const d = await r.json();
+      console.log("RESPONSE JSON:", d);
+      if (d.hash) window.location.href = `/stream/${d.hash}`; // or /panoramastiched/${d.hash}
+    } catch (e) {
+      console.error("FETCH ERROR:", e);
+      setErrorMessage("Failed to stitch panorama.");
+    }
+  };
+
 
   const getProxiedSrc = (url: string) => `http://localhost:5000/proxy-video?url=${encodeURIComponent(url)}`
 
@@ -154,7 +175,7 @@ const App: React.FC = () => {
           ) : (
             <div className="veo-placeholder">
               <img
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-vvoe9mgJVBDd8RdHBpzYJ2uZgzQMnN.png"
+                src="/placeholder.png"
                 alt="Soccer field"
                 className="veo-placeholder-image"
               />
@@ -230,13 +251,29 @@ const App: React.FC = () => {
           <input
             type="text"
             placeholder="Enter streamable video Stacked URL"
-            value={panoramaURL}                               // <- separate state
-            onChange={(e) => setPanoramaURL(e.target.value)}   // <- separate setter
+            value={panoramaURL}
+            onChange={(e) => setPanoramaURL(e.target.value)}
           />
 
-          <h3>Settings Stitch File</h3>
-          <SettingsFileDropComponent onFileSelected={setSettingsFile} />
+          <SettingsFileDropComponent
+            onFileSelected={setSettingsFile}
+            onParsed={(data) => {
+              console.log("PARSED JSON:", data);
+              setSettingsJSON(data);
+            }}
+          />
+
           {settingsFile && <p>Selected: {settingsFile.name}</p>}
+
+          <button
+            type="button"                // ← important if nested in a <form>
+            className="action-button"
+            onClick={handlePanoramaStitch}
+            disabled={!panoramaURL || !settingsJSON}
+          >
+            Stitch Panorama
+          </button>
+
 
           {videoURL1 && (
             <div className="trim-controls">

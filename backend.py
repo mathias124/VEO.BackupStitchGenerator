@@ -4,6 +4,11 @@ from flask_cors import CORS
 import subprocess
 import os
 import requests
+import tempfile
+from werkzeug.utils import secure_filename
+
+from urllib.parse import urlparse, parse_qs
+
 
 app = Flask(__name__)
 CORS(app)
@@ -166,6 +171,121 @@ def proxy_video():
     except Exception as e:
         print(f"Proxy error: {e}")
         return jsonify({"error": "Failed to fetch remote video"}), 500
+
+
+def ffmpeg_split_vertical(src_path, left_out, right_out, top_is_left=True):
+    top_crop = "crop=iw:floor(ih/2):0:0"
+    bottom_crop = "crop=iw:floor(ih/2):0:floor(ih/2)"
+    L, R = (top_crop, bottom_crop) if top_is_left else (bottom_crop, top_crop)
+
+    cmd = [
+        FFMPEG_PATH, "-i", src_path, "-filter_complex",
+        f"[0:v]{L}[L];[0:v]{R}[R]",
+        "-map", "[L]", "-c:v", "libx264", "-crf", "20", "-preset", "veryfast", left_out,
+        "-map", "[R]", "-c:v", "libx264", "-crf", "20", "-preset", "veryfast", right_out
+    ]
+    subprocess.run(cmd, check=True)
+
+def do_hstack_and_return(url1, url2):
+    out_hash = str(uuid.uuid4())
+    output_file = os.path.join(TEMP_DIR, f"{out_hash}.mp4")
+    cmd = [
+        FFMPEG_PATH, "-i", url1, "-i", url2,
+        "-filter_complex", "[0:v][1:v]hstack=inputs=2[v]",
+        "-map", "[v]", "-map", "0:a?",            # keep audio from left if present
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-shortest", "-movflags", "+faststart",
+        output_file
+    ]
+    try:
+        subprocess.run(cmd, check=True)
+        video_storage[out_hash] = output_file
+        return jsonify({"hash": out_hash}), 200
+    except Exception as e:
+        print(f"Panorama stitch error: {e}")
+        return jsonify({"error": "Failed to stitch panorama"}), 500
+
+def _pick(d, *keys):
+    for k in keys:
+        v = d.get(k)
+        if v:
+            return v
+    return None
+
+# ---------- route ----------
+
+@app.route('/panorama-stitch', methods=['POST'])
+def panorama_stitch():
+    """
+    Accept:
+      a) multipart/form-data: field "stacked_file" (.mp4), optional "layout" (vertical) and "top_is" (left|right)
+      b) JSON: {"stacked_url":"...", "layout":"vertical", "top_is":"left"}
+      c) Legacy: {"settings": {"url1":"...", "url2":"..."}}
+    """
+    # ---- A) multipart: uploaded stacked file ----
+    if 'stacked_file' in request.files:
+        f = request.files['stacked_file']
+        if not f or not f.filename.lower().endswith('.mp4'):
+            return jsonify({"error": "stacked_file must be an .mp4"}), 400
+
+        layout = (request.form.get('layout') or 'vertical').lower()
+        top_is = (request.form.get('top_is') or 'left').lower()
+
+        if layout != 'vertical':
+            return jsonify({"error": "only vertical stacks supported"}), 400
+
+        tmpdir = tempfile.mkdtemp(dir=TEMP_DIR)
+        in_path = os.path.join(tmpdir, secure_filename(f.filename))
+        f.save(in_path)
+
+        left_path  = os.path.join(tmpdir, "left.mp4")
+        right_path = os.path.join(tmpdir, "right.mp4")
+        ffmpeg_split_vertical(in_path, left_path, right_path, top_is_left=(top_is == 'left'))
+
+        return do_hstack_and_return(left_path, right_path)   # <- IMPORTANT
+
+    # ---- B) JSON body ----
+    data = request.get_json(silent=True) or {}
+    settings = data.get('settings') or {}
+    stacked_url = data.get('stacked_url')
+    layout = (data.get('layout') or 'vertical').lower()
+    top_is = (data.get('top_is') or 'left').lower()
+
+    # Legacy two-URL inputs
+    url1 = _pick(settings, "url1", "left_url", "left")
+    url2 = _pick(settings, "url2", "right_url", "right")
+
+    # Single stacked_url -> download & split
+    if (not url1 or not url2) and stacked_url:
+        if layout != 'vertical':
+            return jsonify({"error": "only vertical stacks supported"}), 400
+
+        tmpdir = tempfile.mkdtemp(dir=TEMP_DIR)
+        stacked_path = os.path.join(tmpdir, "stacked.mp4")
+
+        # allow local path or http(s)
+        if stacked_url.startswith("http"):
+            with requests.get(stacked_url, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(stacked_path, "wb") as o:
+                    for chunk in r.iter_content(1 << 15):
+                        o.write(chunk)
+        else:
+            # treat as filesystem path
+            if not os.path.exists(stacked_url):
+                return jsonify({"error": f"stacked_url path not found: {stacked_url}"}), 400
+            stacked_path = stacked_url
+
+        left_path  = os.path.join(tmpdir, "left.mp4")
+        right_path = os.path.join(tmpdir, "right.mp4")
+        ffmpeg_split_vertical(stacked_path, left_path, right_path, top_is_left=(top_is == 'left'))
+        return do_hstack_and_return(left_path, right_path)   # <- IMPORTANT
+
+    # Final legacy guard
+    if not url1 or not url2:
+        return jsonify({"error": "Could not resolve both source URLs"}), 400
+
+    return do_hstack_and_return(url1, url2)
 
 
 
