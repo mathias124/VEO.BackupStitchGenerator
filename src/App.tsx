@@ -8,9 +8,17 @@ import "./App.css"
 import SettingsFileDropComponent from "./SettingsFileDropComponent"
 
 const App: React.FC = () => {
-  const [videoURL1, setVideoURL1] = useState("")
-  const [videoURL2, setVideoURL2] = useState("")
-  const [panoramaURL, setPanoramaURL] = useState("")            // ← Panorama has its own URL
+  // Merge inputs (kept separate from trim inputs)
+  const [mergeURL1, setMergeURL1] = useState("")
+  const [mergeURL2, setMergeURL2] = useState("")
+
+  // Trim inputs (kept separate from merge inputs)
+  const [trimInteractiveURL, setTrimInteractiveURL] = useState("")
+  const [trimFollowCamURL, setTrimFollowCamURL] = useState("")
+
+  // Panorama inputs (already separate)
+  const [panoramaURL, setPanoramaURL] = useState("") // ← Panorama has its own URL
+
   const [startTime, setStartTime] = useState<number>(0)
   const [endTime, setEndTime] = useState<number>(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -30,6 +38,7 @@ const App: React.FC = () => {
 
   const hashParams = getHashParams()
   if (hashParams) {
+    // NOTE: kept as-is from your original file
     return <DualStreamView hash1={hashParams.hash1} hash2={hashParams.hash2} />
   }
 
@@ -39,7 +48,7 @@ const App: React.FC = () => {
       const response = await fetch("http://localhost:5000/process-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url1: videoURL1, url2: videoURL2 }),
+        body: JSON.stringify({ url1: mergeURL1, url2: mergeURL2 }),
       })
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -54,9 +63,9 @@ const App: React.FC = () => {
 
   const handleTrimVideo = async () => {
     setErrorMessage(null)
-    const duration = Math.max(0, endTime - startTime)
+    const clipDuration = Math.max(0, endTime - startTime)
 
-    if (!videoURL1 || !videoURL2 || duration <= 0) {
+    if (!trimInteractiveURL || !trimFollowCamURL || clipDuration <= 0) {
       setErrorMessage("Please set both video URLs and valid start/end time.")
       return
     }
@@ -66,10 +75,10 @@ const App: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url1: videoURL1,
-          url2: videoURL2,
+          url1: trimInteractiveURL,
+          url2: trimFollowCamURL,
           start: startTime.toFixed(2),
-          duration: duration.toFixed(2),
+          duration: clipDuration.toFixed(2),
         }),
       })
 
@@ -86,27 +95,26 @@ const App: React.FC = () => {
   }
 
   const handlePanoramaStitch = async () => {
-    console.log("CLICK: stitch", { panoramaURL, settingsJSON });
+    console.log("CLICK: stitch", { panoramaURL, settingsJSON })
     if (!panoramaURL || !settingsJSON) {
-      console.warn("Guard failed – need panoramaURL + settingsJSON");
-      return;
+      console.warn("Guard failed – need panoramaURL + settingsJSON")
+      return
     }
     try {
       const r = await fetch("http://localhost:5000/panorama-stitch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stacked_url: panoramaURL, calib: settingsJSON, top_is: "left" }),
-      });
-      console.log("RESPONSE STATUS:", r.status);
-      const d = await r.json();
-      console.log("RESPONSE JSON:", d);
-      if (d.hash) window.location.href = `/stream/${d.hash}`; // or /panoramastiched/${d.hash}
+      })
+      console.log("RESPONSE STATUS:", r.status)
+      const d = await r.json()
+      console.log("RESPONSE JSON:", d)
+      if (d.hash) window.location.href = `/stream/${d.hash}` // or /panoramastiched/${d.hash}
     } catch (e) {
-      console.error("FETCH ERROR:", e);
-      setErrorMessage("Failed to stitch panorama.");
+      console.error("FETCH ERROR:", e)
+      setErrorMessage("Failed to stitch panorama.")
     }
-  };
-
+  }
 
   const getProxiedSrc = (url: string) => `http://localhost:5000/proxy-video?url=${encodeURIComponent(url)}`
 
@@ -161,10 +169,10 @@ const App: React.FC = () => {
         </div>
 
         <div className="veo-player">
-          {videoURL1 ? (
+          {trimInteractiveURL ? (
             <video
               ref={videoRef}
-              src={getProxiedSrc(videoURL1)}
+              src={getProxiedSrc(trimInteractiveURL)}
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               onPlay={() => setIsPlaying(true)}
@@ -174,18 +182,12 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="veo-placeholder">
-              <img
-                src="/placeholder.png"
-                alt="Soccer field"
-                className="veo-placeholder-image"
-              />
+              <img src="/placeholder.png" alt="Soccer field" className="veo-placeholder-image" />
             </div>
           )}
 
-              <div className="veo-spacer"></div>
-            </div>
-
-
+          <div className="veo-spacer"></div>
+        </div>
       </div>
 
       <div className="tools-container">
@@ -194,14 +196,14 @@ const App: React.FC = () => {
           <input
             type="text"
             placeholder="Enter first video URL"
-            value={videoURL1}
-            onChange={(e) => setVideoURL1(e.target.value)}
+            value={mergeURL1}
+            onChange={(e) => setMergeURL1(e.target.value)}
           />
           <input
             type="text"
             placeholder="Enter second video URL"
-            value={videoURL2}
-            onChange={(e) => setVideoURL2(e.target.value)}
+            value={mergeURL2}
+            onChange={(e) => setMergeURL2(e.target.value)}
           />
           <button onClick={handleMergeVideos} className="action-button">
             Merge Videos
@@ -215,16 +217,16 @@ const App: React.FC = () => {
           <input
             type="text"
             placeholder="Enter streamable video URL Interactive"
-            value={videoURL1}
-            onChange={(e) => setVideoURL1(e.target.value)}
+            value={trimInteractiveURL}
+            onChange={(e) => setTrimInteractiveURL(e.target.value)}
           />
 
           <h3>FollowCam</h3>
           <input
             type="text"
             placeholder="Enter streamable video URL FollowCam"
-            value={videoURL2}
-            onChange={(e) => setVideoURL2(e.target.value)}
+            value={trimFollowCamURL}
+            onChange={(e) => setTrimFollowCamURL(e.target.value)}
           />
 
           <h2>Panorama Download</h2>
@@ -239,15 +241,15 @@ const App: React.FC = () => {
           <SettingsFileDropComponent
             onFileSelected={setSettingsFile}
             onParsed={(data) => {
-              console.log("PARSED JSON:", data);
-              setSettingsJSON(data);
+              console.log("PARSED JSON:", data)
+              setSettingsJSON(data)
             }}
           />
 
           {settingsFile && <p>Selected: {settingsFile.name}</p>}
 
           <button
-            type="button"                // ← important if nested in a <form>
+            type="button" // ← important if nested in a <form>
             className="action-button"
             onClick={handlePanoramaStitch}
             disabled={!panoramaURL || !settingsJSON}
@@ -255,15 +257,20 @@ const App: React.FC = () => {
             Stitch Panorama
           </button>
 
-
-          {videoURL1 && (
+          {trimInteractiveURL && (
             <div className="trim-controls">
               <div className="trim-buttons">
-                <button onClick={() => setStartTime(videoRef.current?.currentTime || 0)} className="action-button">
+                <button
+                  onClick={() => setStartTime(videoRef.current?.currentTime || 0)}
+                  className="action-button"
+                >
                   Set Start Time ({formatTime(startTime)})
                 </button>
 
-                <button onClick={() => setEndTime(videoRef.current?.currentTime || 0)} className="action-button">
+                <button
+                  onClick={() => setEndTime(videoRef.current?.currentTime || 0)}
+                  className="action-button"
+                >
                   Set End Time ({formatTime(endTime)})
                 </button>
               </div>
