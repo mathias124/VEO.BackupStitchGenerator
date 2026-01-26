@@ -30,10 +30,10 @@ const StreamVideo: React.FC = () => {
       {videoBlob ? (
         <video controls>
           <source src={URL.createObjectURL(videoBlob)} type="video/mp4" />
-          Your browser does not support the video tag, unlucky!
+          Your browser does not support the video tag, unlucky mate!
         </video>
       ) : (
-        <p>Its loading!</p>
+        <p>It is loading!</p>
       )}
     </div>
   );

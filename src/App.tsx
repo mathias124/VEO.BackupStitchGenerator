@@ -95,7 +95,7 @@ const App: React.FC = () => {
       const r = await fetch("http://localhost:5000/panorama-stitch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stacked_url: panoramaURL, settings: settingsJSON }),
+        body: JSON.stringify({ stacked_url: panoramaURL, calib: settingsJSON, top_is: "left" }),
       });
       console.log("RESPONSE STATUS:", r.status);
       const d = await r.json();
@@ -182,29 +182,10 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <div className="veo-controls">
-            <div className="veo-timeline-container">
-              <div className="veo-timeline" onClick={handleSeek}>
-                <div className="veo-progress" style={{ width: `${(currentTime / duration) * 100}%` }}></div>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <div key={i} className="veo-marker" style={{ left: `${(i / 19) * 100}%` }}></div>
-                ))}
-              </div>
-            </div>
-
-            <div className="veo-controls-buttons">
-              <button className="veo-control-button" onClick={togglePlayPause}>
-                {isPlaying ? "❚❚" : "▶"}
-              </button>
-
-              <div className="veo-time">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </div>
-
               <div className="veo-spacer"></div>
             </div>
-          </div>
-        </div>
+
+
       </div>
 
       <div className="tools-container">
